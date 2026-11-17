@@ -1,0 +1,129 @@
+# python scripts/train.py -c config/Joint/Joint_all.toml
+
+task = "Joint_all"
+
+[device]
+use_cpu = false
+gpus = [0]
+
+[paths]
+checkpoint = "./ckpt/Joint_all_v5.ckpt"
+save_dir = "./logs"
+name = "Joint_all_v5"
+
+[dataset]
+name = "Joint_all"
+path = ""
+combined_mode = "max_size_cycle"
+main_loader = "conf"
+
+[dataset.conf]
+name = "GEOM_SDEGen"
+path = "./datasets/GEOM_SDEGen"
+radius_cutoff = 8.0
+batch_size = 128
+num_workers = 4
+prefetch_factor = 4
+time_high = 1.05
+terminal_time_threshold = 0.8
+terminal_x0_noise_std = 1.0
+
+[dataset.dock]
+name = "PDBbind2020"
+path = "./datasets/PDBbind2020"
+radius_cutoff = 8.0
+batch_size = 64
+num_workers = 16
+prefetch_factor = 4
+max_translation_shift = 10.0
+augment_protein = false
+time_high = 1.05
+terminal_time_threshold = 0.8
+terminal_x0_noise_std = 1.5
+
+[dataset.pocket]
+name = "PDBbind2020_pocket"
+path = "./datasets/PDBbind2020"
+task = "pocket"
+radius_cutoff = 8.0
+batch_size = -1
+max_nodes = 5000
+num_workers = 1
+prefetch_factor = 2
+train_noise_std = 1.5
+
+[dataset.pocket_ranker]
+name = "PDBbind2020_pocket"
+path = "./datasets/PDBbind2020"
+task = "pocket_ranker"
+radius_cutoff = 8.0
+batch_size = 6
+num_workers = 1
+prefetch_factor = 2
+train_noise_std = 1.5
+ranker_num_centers = 50
+ranker_noise_std = 6.0
+
+[model]
+input_dim = 128
+t_rbf_dim = 128
+terminal_time_threshold = 0.8
+
+[model.backbone]
+name = "COSMol"
+num_layers = 8
+conf_num_layers = 8
+dock_num_layers = 6
+dist_rbf_dim = 128
+radius_cutoff = 8.0
+cutoff_fn = "IEConvCutoff"
+normalization = "postDyt"
+dropout = 0.0
+
+[model.output.dock]
+name = "Docking_output"
+hidden_dim = [256, 256, 1]
+clamp_range = 5.0
+dropout = 0.0
+
+[model.output.conf]
+name = "Conformation_generation"
+input_dim = 128
+hidden_dim = [256, 256, 1]
+clamp_range = 5.0
+dropout = 0.0
+
+[model.output.pocket]
+name = "Pocket_out"
+hidden_dim = [128, 1]
+dropout = 0.0
+
+[model.output.pocket_ranker]
+name = "Pocket_ranker_out"
+hidden_dim = [128, 1]
+dropout = 0.0
+
+[trainer]
+loss_function = "MSELoss"
+metrics = ["MAD"]
+max_epochs = 1500
+num_sanity_val_steps = 0
+torch_num_threads = 1
+torch_num_interop_threads = 1
+find_unused_parameters = true
+conf_loss_weight = 1.0
+dock_loss_weight = 1.0
+pocket_vec_loss_weight = 0.01
+pocket_ranker_loss_weight = 0.03
+save_every_n_epochs = 5
+
+[trainer.optimizer]
+class = "AdamW"
+lr = 2.0e-4
+weight_decay = 0
+
+[trainer.scheduler]
+class = "CosineWithWarmup"
+num_warmup_steps = 30
+num_training_steps = 1500
+num_cycles = 0.5

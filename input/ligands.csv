@@ -1,0 +1,4 @@
+ligand_name,ligand_description
+ethanol,CCO
+lactic_acid,C[C@H](O)C(=O)O
+6fe5,input/6fe5_ligand.sdf

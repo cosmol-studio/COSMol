@@ -1,0 +1,83 @@
+# python scripts/train.py -c config/PDBbind/Sc_pdb_pocket_joint.toml
+
+task = "JointPocketPrediction"
+
+[device]
+use_cpu = false
+gpus = [0]
+
+[paths]
+checkpoint = "./ckpt/Pocket_prediction_v5.ckpt"
+save_dir = "./logs"
+name = "Pocket_prediction_v5"
+
+[dataset]
+name = "JointPocketPrediction"
+path = "./datasets/Sc_pdb_pocket"
+combined_mode = "max_size_cycle"
+
+[dataset.pocket]
+name = "Sc_pdb_pocket"
+path = "./datasets/Sc_pdb_pocket"
+task = "pocket"
+radius_cutoff = 10.0
+radius_min = 7.0
+batch_size = 12
+train_noise_std = 1.5
+num_workers = 4
+prefetch_factor = 1
+pin_memory = false
+
+[dataset.pocket_ranker]
+name = "Sc_pdb_pocket"
+path = "./datasets/Sc_pdb_pocket"
+task = "pocket_ranker"
+radius_cutoff = 8.0
+batch_size = 12
+train_noise_std = 1.5
+ranker_num_centers = 150
+ranker_noise_std = 6.0
+ranker_oversample_factor = 2
+num_workers = 4
+prefetch_factor = 1
+pin_memory = false
+
+[model]
+input_dim = 160
+
+[model.backbone]
+name = "COSMol"
+num_layers = 6
+dist_rbf_dim = 128
+radius_cutoff = 8.0
+cutoff_fn = "IEConvCutoff"
+normalization = "postDyt"
+dropout = 0.2
+
+[model.output.pocket]
+name = "Pocket_out"
+hidden_dim = [160, 1]
+dropout = 0.0
+
+[model.output.pocket_ranker]
+name = "Pocket_ranker_out"
+hidden_dim = [160, 1]
+dropout = 0.0
+
+[trainer]
+loss_function = "MAELoss"
+metrics = ["MAD"]
+max_epochs = 150
+pocket_vec_loss_weight = 1.0
+pocket_ranker_loss_weight = 2.0
+
+[trainer.optimizer]
+class = "AdamW"
+lr = 5.0e-4
+weight_decay = 0
+
+[trainer.scheduler]
+class = "CosineWithWarmup"
+num_warmup_steps = 10
+num_training_steps = 150
+num_cycles = 0.5

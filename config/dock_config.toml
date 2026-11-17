@@ -1,0 +1,13 @@
+num_conformations = 40
+precision = "float16" # float32 or float16
+
+[device]
+use_cpu = false
+gpus = [0]
+
+[docking_joint]
+inference_steps = 50
+config = "config/Joint/Joint_all.toml"
+
+[score]
+config = "config/PDBbind/Pose_ranker.toml"

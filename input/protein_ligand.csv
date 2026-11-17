@@ -1,0 +1,3 @@
+complex_name,protein_path,ligand_description
+6fe5,input/6fe5_protein.pdb,input/6fe5_ligand.sdf
+1sre,input/1sre_clean.pdb,input/1sre_ligand.sdf

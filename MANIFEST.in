@@ -1,0 +1,12 @@
+include README.md requirements.in
+recursive-include config *.toml
+recursive-include reproduce *.py *.csv *.md
+recursive-include reproduce/splits *
+recursive-include input *.pdb *.sdf *.csv
+include data/README.md
+prune ckpt
+include ckpt/.gitkeep
+prune datasets
+prune logs
+prune output
+prune outputs

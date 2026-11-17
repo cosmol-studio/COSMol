@@ -1,0 +1,36 @@
+torch==2.9.0
+torchvision==0.24.0
+biopython==1.87
+torch_geometric==2.7.0
+h5py
+easydict
+PyYAML
+pandas
+lmdb==1.7.3
+lightning==2.6.1
+rich
+tensorboard==2.20.0
+wandb==0.30.0
+requests[socks]
+matplotlib
+rdkit==2026.3.1
+cosmolkit==0.6.2
+cosmol-viewer==0.6.2
+scikit-learn==1.7.1
+seaborn
+polars
+ase
+spyrmsd
+pdbfixer-wheel
+posebusters==0.4.5
+hdbscan
+toml-rs
+pymol-open-source
+
+# Scatter/sparse operations use PyTorch/PyG native implementations.
+# Retain torch-cluster to preserve neighbor selection and ordering.
+torch_cluster @ https://data.pyg.org/whl/torch-2.9.0%2Bcu128/torch_cluster-1.6.3%2Bpt29cu128-cp311-cp311-linux_x86_64.whl
+numpy
+scipy
+rustworkx
+torchmetrics

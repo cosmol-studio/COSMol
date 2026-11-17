@@ -4,8 +4,15 @@ version = "0.0.1.dev1"
 description = "COSMol: Comprehensive Structured Representation Learning Framework for Biomolecules"
 authors = [{name = "95028", email = "wjt@cosmol.org"}]
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.11,<3.12"
 
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cosmol*", "data*", "models*", "scripts*"]
+
+[tool.setuptools]
+include-package-data = false

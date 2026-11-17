@@ -1,0 +1,55 @@
+# python scripts/train.py -c config/PDBbind/Pose_ranker.toml
+
+task = "Docking_pose_ranker"
+
+[device]
+use_cpu = false
+gpus = [0]
+
+[paths]
+checkpoint = "./ckpt/Pose_ranker_v5.ckpt"
+save_dir = "./logs"
+name = "Pose_ranker_v5"
+
+[dataset]
+name = "PDBbind_score_negative"
+path = "./datasets/PDBbind2020"
+radius_cutoff = 6.0
+batch_size = 32
+
+[model]
+input_dim = 128
+
+[model.backbone]
+num_node_types = 100
+num_layers = 3
+dist_rbf_dim = 128
+radius_cutoff = 6.0
+use_edge_type = true
+chirality_feat = false
+ligand_mask = true
+cutoff_fn = "IEConvCutoff"
+normalization = "postDyt"
+dropout = 0.1
+
+[model.output]
+name = "pose_ranker_out"
+hidden_dim = [256, 1]
+reduce = ["max", "mean"]
+dropout = 0.0
+
+[trainer]
+loss_function = "pose_ranker_loss"
+metrics = ["MAE"]
+max_epochs = 800
+
+[trainer.optimizer]
+class = "AdamW"
+lr = 3.0e-4
+weight_decay = 0
+
+[trainer.scheduler]
+class = "CosineWithWarmup"
+num_warmup_steps = 10
+num_training_steps = 800
+num_cycles = 0.5
