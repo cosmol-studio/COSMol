@@ -1,6 +1,6 @@
 """
-python scripts/virtual_screening.py -c config/dock_config.toml --data-root ./data/DEKOIS2 --out_dir ./vs_results --target pdk1
-python scripts/virtual_screening.py -c config/dock_config.toml --input-format dudez --data-root ./data/DUDE-Z --out_dir ./vs_results_dudez
+python scripts/virtual_screening.py -c config/dock_config.toml --data-root ./datasets/DEKOIS2 --out_dir ./vs_results --target pdk1
+python scripts/virtual_screening.py -c config/dock_config.toml --input-format dudez --data-root ./datasets/DUDE-Z --out_dir ./vs_results_dudez
 
 Add --unbound-support to save free conformers for scripts/evaluate_virtual_screening.py.
 """
@@ -239,6 +239,7 @@ def score_ligand_batch(
             pose_ranker_cfg=args.score_cfg,
             precision=torch.float16,
             optimized=True,
+            inference_steps=args.inference_steps,
         )
     if isinstance(results, dict):
         results = [results]
@@ -613,7 +614,7 @@ if __name__ == "__main__":
     parser.add_argument("-c", "--config", type=str, required=True)
     parser.add_argument(
         "--dekois_root", "--data-root", type=str, required=True,
-        help="Dataset root, for example ./data/DEKOIS2 or ./data/DUDE-Z",
+        help="Dataset root, for example ./datasets/DEKOIS2 or ./datasets/DUDE-Z",
     )
     parser.add_argument("--input-format", "--input_format", choices=["dekois", "dudez"], default="dekois")
     parser.add_argument("--unbound-support", "--unbound_support", action="store_true")
@@ -655,12 +656,14 @@ if __name__ == "__main__":
     docking_section = getattr(args, "docking_joint", None) or getattr(args, "docking", None)
     if docking_section is None:
         parser.error("Configuration requires [docking] or [docking_joint]")
+    args.inference_steps = docking_section.get("inference_steps", 50)
     args.docking_cfg = load_toml_cfg(docking_section.config)
     args.score_cfg = load_toml_cfg(args.score.config)
     args.out_dir = str(Path(args.out_dir).expanduser())
     args.run_metadata = dict(
         input_format=args.input_format, unbound_support=args.unbound_support,
-        num_confs=args.num_confs, seed=args.seed, ligand_batch_size=args.ligand_batch_size,
+        num_confs=args.num_confs, inference_steps=args.inference_steps,
+        seed=args.seed, ligand_batch_size=args.ligand_batch_size,
         unbound_num_confs=args.unbound_num_confs, unbound_scale=args.unbound_scale,
         unbound_atom_budget=args.unbound_atom_budget, precision="float16", optimized=True,
         pocket_center_definition="reference heavy-atom coordinate mean",

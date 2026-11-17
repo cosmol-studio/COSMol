@@ -85,7 +85,7 @@ Relative ligand file paths are resolved from the working directory. Each ligand'
 Screen a ligand library against a receptor using a reference ligand to define the docking center. Prepare one directory per target using either supported layout.
 
 ```text
-data/
+datasets/
 ├── DEKOIS2/
 │   └── <target>/
 │       ├── active_decoys.smi
@@ -108,12 +108,12 @@ Run screening, then calculate the final scores.
 
 ```bash
 python scripts/virtual_screening.py -c config/dock_config.toml \
-  --data-root ./data/DEKOIS2 --out_dir ./vs_results --unbound-support
+  --data-root ./datasets/DEKOIS2 --out_dir ./vs_results --unbound-support
 
 python scripts/evaluate_virtual_screening.py --vs-dir ./vs_results \
   --unbound-support --agg topk_mean --topk 10
 ```
 
-`--unbound-support` enables free-conformer support scoring. Omit this option from both commands to use pose-ranker scores alone. For DUDE-Z input, use `--input-format dudez --data-root ./data/DUDE-Z` in the screening command. Add `--target <name>` to select one target, and use `--ligand_batch_size` to control the number of ligands processed together.
+`--unbound-support` enables free-conformer support scoring. Omit this option from both commands to use pose-ranker scores alone. For DUDE-Z input, use `--input-format dudez --data-root ./datasets/DUDE-Z` in the screening command. Add `--target <name>` to select one target, and use `--ligand_batch_size` to control the number of ligands processed together.
 
 Raw pose scores are saved to `<out_dir>/<target>/scores.csv`. Final ligand scores are saved to `<out_dir>/evaluation/<target>/evaluated_scores.csv`. Use the `Ranker + Q_C` column for support scoring or `Ranker` for the baseline, sorting from highest to lowest.

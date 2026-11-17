@@ -163,6 +163,7 @@ def pred_confs(
     precision=torch.float32,
     initial_shift_range=1.0,
     optimized=False,
+    inference_steps=50,
     # pocket_ranker_sdf_dir="pocket_ranker_sdf.sdf",
 ):
     device = _as_device(device)
@@ -301,7 +302,7 @@ def pred_confs(
         dock_batch = Batch.from_data_list(dock_batch)
 
         with torch.no_grad():
-            run_kwargs = {}
+            run_kwargs = {"inference_steps": inference_steps}
             if optimized:
                 run_kwargs["optimized"] = True
             pred_coords_flat = run_batch(dock_batch, docking_cfg, **run_kwargs)
@@ -392,10 +393,10 @@ def _compute_delta_t(t_schedule: torch.Tensor, t: torch.Tensor):
     return t_next - t_curr
 
 
-def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False):
-    n_steps = 50
-    terminal_updates = 20
-    terminal_count = 0
+def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, inference_steps=50):
+    if isinstance(inference_steps, bool) or not isinstance(inference_steps, int) or inference_steps < 1:
+        raise ValueError("inference_steps must be a positive integer")
+    n_steps = inference_steps
     rotation_scale = 1.5
     shift_scale = 3.0
     conformation_scale = 2.5
@@ -412,11 +413,6 @@ def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False):
     for i in range(t_schedule.size(0) - 1):
         delta_t = _compute_delta_t(t_schedule, t=i)
         t = t_host[i] if optimized else t_schedule[i]
-        if t >= 0.8:
-            if terminal_count >= terminal_updates:
-                break
-            terminal_count += 1
-
         batch_t = copy(batch)
         batch_t.extract_pocket_and_update_graph(
             radius_cutoff,

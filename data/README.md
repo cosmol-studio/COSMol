@@ -1,6 +1,6 @@
 # Training data and caches
 
-Training datasets use `./datasets/` by default. Set the dataset `path` fields in the model TOML files to use another location. Benchmark CSV inputs and virtual-screening libraries are described in [reproduce/README.md](../reproduce/README.md).
+Dataset files and training caches use `./datasets/` by default. Set the dataset `path` fields in the model TOML files to use another location. Benchmark CSV inputs and virtual-screening libraries are described in [reproduce/README.md](../reproduce/README.md).
 
 ## PDBbind2020
 

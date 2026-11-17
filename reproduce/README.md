@@ -10,12 +10,14 @@ Keep the complex lists in the supplied CSV files and prepare the corresponding r
 
 | Dataset | Manifest | Complexes | Input directory |
 | --- | --- | ---: | --- |
-| PDBbind2020 test | [PDBBind_test_set.csv](PDBBind_test_set.csv) | 363 | `./data/PDBbind2020/raw/v2020-other-PL` |
-| Astex Diverse | [astex_diverse_set.csv](astex_diverse_set.csv) | 85 | `./data/Astex_Diverse/astex_diverse_set` |
-| Astex Diverse (apo) | [astex_diverse_set_apo.csv](astex_diverse_set_apo.csv) | 85 | `./data/Astex_Diverse/astex_diverse_set` |
-| PoseBusters | [posebusters_test_set.csv](posebusters_test_set.csv) | 308 | `./data/PoseBusters/posebusters_benchmark_set` |
+| PDBbind2020 test | [PDBBind_test_set.csv](PDBBind_test_set.csv) | 363 | `./datasets/PDBbind2020/raw/v2020-other-PL` |
+| Astex Diverse | [astex_diverse_set.csv](astex_diverse_set.csv) | 85 | `./datasets/Astex_Diverse/astex_diverse_set` |
+| Astex Diverse (apo) | [astex_diverse_set_apo.csv](astex_diverse_set_apo.csv) | 85 | `./datasets/Astex_Diverse/astex_diverse_set` |
+| PoseBusters | [posebusters_test_set.csv](posebusters_test_set.csv) | 308 | `./datasets/PoseBusters/posebusters_benchmark_set` |
 
 The counts describe the manifests supplied in this repository. Paths inside each manifest are relative to its input directory. Each reference ligand must retain its crystallographic coordinates in the receptor's coordinate frame.
+
+Docking evaluation requires a rank-1 prediction for every complex in the input CSV. Missing predictions stop evaluation with an error; success rates use the full CSV size as the denominator.
 
 For **ligand-center docking**, `--use_ligand_center_as_pocket` sets the docking center to the reference ligand's heavy-atom centroid. For **blind docking**, the model predicts candidate sites from the full receptor. Both settings use the pose ranker to order the generated poses.
 
@@ -26,7 +28,7 @@ Generate ligand-center predictions.
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/PDBBind_test_set.csv \
-  --input_dir ./data/PDBbind2020/raw/v2020-other-PL \
+  --input_dir ./datasets/PDBbind2020/raw/v2020-other-PL \
   --use_ligand_center_as_pocket --out_dir ./reproduce/results/pdbbind_center
 ```
 
@@ -35,7 +37,7 @@ Generate blind-docking predictions.
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/PDBBind_test_set.csv \
-  --input_dir ./data/PDBbind2020/raw/v2020-other-PL \
+  --input_dir ./datasets/PDBbind2020/raw/v2020-other-PL \
   --out_dir ./reproduce/results/pdbbind_blind
 ```
 
@@ -44,12 +46,12 @@ Evaluate each output directory.
 ```bash
 python reproduce/evaluate_docking.py \
   --protein_ligand_csv reproduce/PDBBind_test_set.csv \
-  --input_dir ./data/PDBbind2020/raw/v2020-other-PL \
+  --input_dir ./datasets/PDBbind2020/raw/v2020-other-PL \
   --out_dir ./reproduce/results/pdbbind_center
 
 python reproduce/evaluate_docking.py \
   --protein_ligand_csv reproduce/PDBBind_test_set.csv \
-  --input_dir ./data/PDBbind2020/raw/v2020-other-PL \
+  --input_dir ./datasets/PDBbind2020/raw/v2020-other-PL \
   --out_dir ./reproduce/results/pdbbind_blind
 ```
 
@@ -60,12 +62,12 @@ Generate and evaluate ligand-center predictions.
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/astex_diverse_set.csv \
-  --input_dir ./data/Astex_Diverse/astex_diverse_set \
+  --input_dir ./datasets/Astex_Diverse/astex_diverse_set \
   --use_ligand_center_as_pocket --out_dir ./reproduce/results/astex_center
 
 python reproduce/evaluate_docking.py \
   --protein_ligand_csv reproduce/astex_diverse_set.csv \
-  --input_dir ./data/Astex_Diverse/astex_diverse_set \
+  --input_dir ./datasets/Astex_Diverse/astex_diverse_set \
   --out_dir ./reproduce/results/astex_center
 ```
 
@@ -74,12 +76,12 @@ Generate and evaluate blind-docking predictions.
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/astex_diverse_set.csv \
-  --input_dir ./data/Astex_Diverse/astex_diverse_set \
+  --input_dir ./datasets/Astex_Diverse/astex_diverse_set \
   --out_dir ./reproduce/results/astex_blind
 
 python reproduce/evaluate_docking.py \
   --protein_ligand_csv reproduce/astex_diverse_set.csv \
-  --input_dir ./data/Astex_Diverse/astex_diverse_set \
+  --input_dir ./datasets/Astex_Diverse/astex_diverse_set \
   --out_dir ./reproduce/results/astex_blind
 ```
 
@@ -90,13 +92,13 @@ Use the receptors listed in `astex_diverse_set_apo.csv` for blind docking with C
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/astex_diverse_set_apo.csv \
-  --input_dir ./data/Astex_Diverse/astex_diverse_set \
+  --input_dir ./datasets/Astex_Diverse/astex_diverse_set \
   --out_dir ./reproduce/astex_diverse_set_apo_predictions
 
 python reproduce/evaluate_apo_docking.py \
   --protein_ligand_csv reproduce/astex_diverse_set.csv \
   --protein_ligand_csv_apo reproduce/astex_diverse_set_apo.csv \
-  --input_dir ./data/Astex_Diverse/astex_diverse_set \
+  --input_dir ./datasets/Astex_Diverse/astex_diverse_set \
   --out_dir ./reproduce/astex_diverse_set_apo_predictions
 ```
 
@@ -107,12 +109,12 @@ Generate and evaluate ligand-center predictions.
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/posebusters_test_set.csv \
-  --input_dir ./data/PoseBusters/posebusters_benchmark_set \
+  --input_dir ./datasets/PoseBusters/posebusters_benchmark_set \
   --use_ligand_center_as_pocket --out_dir ./reproduce/results/posebusters_center
 
 python reproduce/evaluate_docking.py \
   --protein_ligand_csv reproduce/posebusters_test_set.csv \
-  --input_dir ./data/PoseBusters/posebusters_benchmark_set \
+  --input_dir ./datasets/PoseBusters/posebusters_benchmark_set \
   --out_dir ./reproduce/results/posebusters_center
 ```
 
@@ -121,12 +123,12 @@ Generate and evaluate blind-docking predictions.
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
   --protein_ligand_csv reproduce/posebusters_test_set.csv \
-  --input_dir ./data/PoseBusters/posebusters_benchmark_set \
+  --input_dir ./datasets/PoseBusters/posebusters_benchmark_set \
   --out_dir ./reproduce/results/posebusters_blind
 
 python reproduce/evaluate_docking.py \
   --protein_ligand_csv reproduce/posebusters_test_set.csv \
-  --input_dir ./data/PoseBusters/posebusters_benchmark_set \
+  --input_dir ./datasets/PoseBusters/posebusters_benchmark_set \
   --out_dir ./reproduce/results/posebusters_blind
 ```
 
@@ -138,10 +140,10 @@ The evaluator reads the five highest-ranked SDF files per complex. It reports To
 
 ### Screening inputs
 
-Prepare one directory per target under `./data/DEKOIS2` or `./data/DUDE-Z`.
+Prepare one directory per target under `./datasets/DEKOIS2` or `./datasets/DUDE-Z`.
 
 ```text
-data/
+datasets/
 ├── DEKOIS2/
 │   └── <target>/
 │       ├── active_decoys.smi
@@ -164,11 +166,11 @@ The reference ligand's heavy-atom centroid defines the docking center. Keep its 
 
 ```bash
 python scripts/virtual_screening.py -c config/dock_config.toml \
-  --data-root ./data/DEKOIS2 --out_dir ./reproduce/results/dekois2 \
+  --data-root ./datasets/DEKOIS2 --out_dir ./reproduce/results/dekois2 \
   --unbound-support --num_confs 40 --unbound-num-confs 20 --seed 42
 
 python scripts/virtual_screening.py -c config/dock_config.toml \
-  --input-format dudez --data-root ./data/DUDE-Z \
+  --input-format dudez --data-root ./datasets/DUDE-Z \
   --out_dir ./reproduce/results/dudez \
   --unbound-support --num_confs 40 --unbound-num-confs 20 --seed 42
 ```

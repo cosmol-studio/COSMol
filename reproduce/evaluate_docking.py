@@ -126,6 +126,11 @@ def collect_ranked_predictions(out_dir, complex_name, perfect_selection):
         if rank in ranked:
             raise ValueError(f"Duplicate rank {rank} in {path.parent}; regenerate into a clean directory")
         ranked[rank] = str(path)
+    if 1 not in ranked:
+        raise FileNotFoundError(
+            f"{complex_name}: no rank-1 prediction found in {Path(out_dir) / complex_name}. "
+            "Benchmark evaluation requires predictions for every complex in the input CSV."
+        )
     ranks = sorted(ranked) if perfect_selection else [rank for rank in sorted(ranked) if rank <= 5]
     return [ranked[rank] for rank in ranks]
 
@@ -158,8 +163,14 @@ if __name__ == "__main__":
         }
         for i, row in enumerate(df.iter_rows(named=True))
     ]
+    num_complexes = len(tasks)
+    if num_complexes == 0:
+        raise ValueError("The benchmark CSV contains no complexes.")
 
     for task in tasks:
+        task["prediction_paths"] = collect_ranked_predictions(
+            out_dir, task["complex_name"], perfect_selection
+        )
         for field in ("protein_path", "ligand_description"):
             path = os.path.expanduser(task[field])
             if args.input_dir is not None:
@@ -175,14 +186,13 @@ if __name__ == "__main__":
     for task in tqdm(tasks, desc="Prepare metrics"):
         complex_name = task["complex_name"]
         gt_mol = load_gt_mol(task["ligand_description"])
-
-        mol_pred_paths = collect_ranked_predictions(out_dir, complex_name, perfect_selection)
-        if len(mol_pred_paths) < 1:
-            failed_complexes.append(complex_name)
-            print(f"{complex_name}: no ranked prediction found.")
-            continue
-
+        if gt_mol is None:
+            raise ValueError(f"{complex_name}: cannot read reference ligand {task['ligand_description']}")
+        mol_pred_paths = task["prediction_paths"]
         mol_preds = [Chem.MolFromMolFile(mol_pred_path) for mol_pred_path in mol_pred_paths]
+        for path, mol_pred in zip(mol_pred_paths, mol_preds):
+            if mol_pred is None:
+                raise ValueError(f"{complex_name}: cannot read prediction {path}")
         rmsds = torch.stack(
             [calc_rmsd(mol_pred, gt_mol, remove_Hs=True) for mol_pred in mol_preds],
             dim=0,
@@ -244,18 +254,19 @@ if __name__ == "__main__":
     rmsd_top5_min = torch.tensor(rmsd_top5_min)
     PB_valids = torch.stack(pb_results) if pb_results else torch.empty((0, len(FAIL_RULES)), dtype=torch.bool)
 
+    print(f"Evaluated complexes: {len(rmsd_top1)} / {num_complexes}")
     print(f"Failed complexes: {len(failed_complexes)}")
 
     if len(rmsd_top1) > 0:
-        print("the top1 rmsd below 1.0:", torch.sum(rmsd_top1 < 1.0).item(), "/", len(rmsd_top1), "(", torch.sum(rmsd_top1 < 1.0).item() / len(rmsd_top1) * 100, "%)")
-        print("the top1 rmsd below 2.0:", torch.sum(rmsd_top1 < 2.0).item(), "/", len(rmsd_top1), "(", torch.sum(rmsd_top1 < 2.0).item() / len(rmsd_top1) * 100, "%)")
+        print("the top1 rmsd below 1.0:", torch.sum(rmsd_top1 < 1.0).item(), "/", num_complexes, "(", torch.sum(rmsd_top1 < 1.0).item() / num_complexes * 100, "%)")
+        print("the top1 rmsd below 2.0:", torch.sum(rmsd_top1 < 2.0).item(), "/", num_complexes, "(", torch.sum(rmsd_top1 < 2.0).item() / num_complexes * 100, "%)")
         print("the top1 rmsd median:", torch.nanmedian(rmsd_top1))
-        print("the top5 rmsd below 1.0:", torch.sum(rmsd_top5_min < 1.0).item(), "/", len(rmsd_top5_min), "(", torch.sum(rmsd_top5_min < 1.0).item() / len(rmsd_top5_min) * 100, "%)")
-        print("the top5 rmsd below 2.0:", torch.sum(rmsd_top5_min < 2.0).item(), "/", len(rmsd_top5_min), "(", torch.sum(rmsd_top5_min < 2.0).item() / len(rmsd_top5_min) * 100, "%)")
+        print("the top5 rmsd below 1.0:", torch.sum(rmsd_top5_min < 1.0).item(), "/", num_complexes, "(", torch.sum(rmsd_top5_min < 1.0).item() / num_complexes * 100, "%)")
+        print("the top5 rmsd below 2.0:", torch.sum(rmsd_top5_min < 2.0).item(), "/", num_complexes, "(", torch.sum(rmsd_top5_min < 2.0).item() / num_complexes * 100, "%)")
         print("the top5 rmsd median:", torch.nanmedian(rmsd_top5_min))
 
     if PB_valids.shape[0] > 0:
-        print("PoseBusters valid:", torch.sum(PB_valids.all(dim=-1)).item(), "/", PB_valids.shape[0], "(", torch.sum(PB_valids.all(dim=-1)).item() / PB_valids.shape[0] * 100, "%)")
+        print("PoseBusters valid:", torch.sum(PB_valids.all(dim=-1)).item(), "/", num_complexes, "(", torch.sum(PB_valids.all(dim=-1)).item() / num_complexes * 100, "%)")
         PB_failed_count = torch.sum(~PB_valids, dim=0)
         for i, flag in enumerate(PB_failed_count):
             print(f"{flag} - {FAIL_RULES[i]}")

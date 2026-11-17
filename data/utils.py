@@ -1814,6 +1814,8 @@ def get_pocket_center(pocket_description):
         mol = ck.BioStructure.from_pdb(block).to_molecule(sanitize=False, remove_hs=False)
     elif pocket_description.endswith(".sdf"):
         mol = ck.Molecule.read_sdf(pocket_description, sanitize=False, remove_hs=False)
+    elif pocket_description.endswith(".mol2"):
+        mol = ck.Molecule.read_mol2(pocket_description, sanitize=False, remove_hs=False)
     else:
         raise ValueError(f"Unsupported pocket file format: {pocket_description}")
     positions = torch.tensor(mol.coordinates_3d(), dtype=torch.float)

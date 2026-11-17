@@ -1,7 +1,6 @@
 from argparse import ArgumentParser
 from rdkit import Chem
 import polars as pl
-import glob
 import os
 import sys
 import torch
@@ -46,15 +45,20 @@ if __name__ == "__main__":
         }
         for i, row in enumerate(df.iter_rows(named=True))
     ]
+    num_complexes = len(tasks)
+    if num_complexes == 0:
+        raise ValueError("The benchmark CSV contains no complexes.")
 
+    perfect_selection = False
     for task in tasks:
+        task["prediction_paths"] = collect_ranked_predictions(
+            out_dir, task["complex_name"], perfect_selection
+        )
         for field in ("protein_path", "protein_path_apo", "ligand_description"):
             path = os.path.expanduser(task[field])
             if args.input_dir is not None:
                 path = os.path.join(args.input_dir, path)
             task[field] = resolve_path(path)
-
-    perfect_selection = False
 
     rmsd_top1 = []
     rmsd_top5 = []
@@ -65,15 +69,11 @@ if __name__ == "__main__":
         complex_name = task["complex_name"]
         print(complex_name)
         gt_mol = Chem.MolFromMolFile(os.path.expanduser(task["ligand_description"]))
+        if gt_mol is None:
+            raise ValueError(f"{complex_name}: cannot read reference ligand {task['ligand_description']}")
+        mol_pred_paths = task["prediction_paths"]
 
         if not perfect_selection:
-            mol_pred_paths = collect_ranked_predictions(out_dir, complex_name, False)
-
-            if len(mol_pred_paths) < 1:
-                failed_complexes.append(complex_name)
-                print("not ranked prediction found.")
-                continue
-
             mol_preds_aligned, aligned_protein_path = align_poses_to_reference_site(
                 task["protein_path"],
                 task["ligand_description"],
@@ -107,17 +107,6 @@ if __name__ == "__main__":
             PB_valids.append(PB_valid)
 
         else:
-            mol_pred_paths = []
-
-            mol_pred_paths = glob.glob(os.path.expanduser(
-                    f"{out_dir}/{complex_name}/rank*.sdf"
-                ))
-
-            if len(mol_pred_paths) < 1:
-                failed_complexes.append(complex_name)
-                print("not ranked prediction found.")
-                continue
-
             mol_preds_aligned, aligned_protein_path = align_poses_to_reference_site(
                 task["protein_path"],
                 task["ligand_description"],
@@ -152,15 +141,16 @@ if __name__ == "__main__":
     rmsd_top5_min = torch.tensor(rmsd_top5_min)
     PB_valids = torch.stack(PB_valids)
 
+    print(f"Evaluated complexes: {len(rmsd_top1)} / {num_complexes}")
     print(f"Failed complexes: {len(failed_complexes)}")
 
-    print("the top1 rmsd below 1.0:", torch.sum(rmsd_top1 < 1.0).item() ,"/" ,len(rmsd_top1), "(" ,torch.sum(rmsd_top1 < 1.0).item() / len(rmsd_top1) * 100, "%)")
-    print("the top1 rmsd below 2.0:", torch.sum(rmsd_top1 < 2.0).item() ,"/" ,len(rmsd_top1), "(" ,torch.sum(rmsd_top1 < 2.0).item() / len(rmsd_top1) * 100, "%)")
+    print("the top1 rmsd below 1.0:", torch.sum(rmsd_top1 < 1.0).item() ,"/" ,num_complexes, "(" ,torch.sum(rmsd_top1 < 1.0).item() / num_complexes * 100, "%)")
+    print("the top1 rmsd below 2.0:", torch.sum(rmsd_top1 < 2.0).item() ,"/" ,num_complexes, "(" ,torch.sum(rmsd_top1 < 2.0).item() / num_complexes * 100, "%)")
     print("the top1 rmsd median:", torch.nanmedian(rmsd_top1))
-    print("the top5 rmsd below 1.0:", torch.sum(rmsd_top5_min < 1.0).item() ,"/" ,len(rmsd_top5_min), "(" ,torch.sum(rmsd_top5_min < 1.0).item() / len(rmsd_top5_min) * 100, "%)")
-    print("the top5 rmsd below 2.0:", torch.sum(rmsd_top5_min < 2.0).item() ,"/" ,len(rmsd_top5_min), "(" ,torch.sum(rmsd_top5_min < 2.0).item() / len(rmsd_top5_min) * 100, "%)")
+    print("the top5 rmsd below 1.0:", torch.sum(rmsd_top5_min < 1.0).item() ,"/" ,num_complexes, "(" ,torch.sum(rmsd_top5_min < 1.0).item() / num_complexes * 100, "%)")
+    print("the top5 rmsd below 2.0:", torch.sum(rmsd_top5_min < 2.0).item() ,"/" ,num_complexes, "(" ,torch.sum(rmsd_top5_min < 2.0).item() / num_complexes * 100, "%)")
     print("the top5 rmsd median:", torch.nanmedian(rmsd_top5_min))
-    print("PoseBusters valid:", torch.sum(PB_valids.all(dim=-1)).item() ,"/" ,PB_valids.shape[0], "(" ,torch.sum(PB_valids.all(dim=-1)).item() / PB_valids.shape[0] * 100, "%)")
+    print("PoseBusters valid:", torch.sum(PB_valids.all(dim=-1)).item() ,"/" ,num_complexes, "(" ,torch.sum(PB_valids.all(dim=-1)).item() / num_complexes * 100, "%)")
 
     PB_failed_count = torch.sum(~PB_valids, dim=-0)
     for i, flag in enumerate(PB_failed_count):
