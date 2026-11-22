@@ -23,7 +23,7 @@ from tqdm import tqdm
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from models.utils import load_toml_cfg
-from data.utils import get_confs_from_coords
+from data.utils import get_confs_from_coords, remove_all_hydrogens
 from scripts.docking_utils import (
     FAIL_RULES,
     PB_validate_test,
@@ -96,7 +96,6 @@ def gpu_worker(gpu_id, task_queue, result_queue):
                     pose_ranker_cfg=score_cfg,
                     initial_shift_range=1.0,
                     precision=torch.float16,
-                    optimized=True,
                 )
 
             result_queue.put((idx, result))
@@ -137,7 +136,7 @@ def cpu_worker(result_queue, final_queue):
         # read dataset again (shared memory)
         ligand_data, protein_data = test_dataset[idx]
         gt_mol = ligand_data.mol
-        gt_mol = gt_mol.without_hydrogens()
+        gt_mol = remove_all_hydrogens(gt_mol)
 
         pred_mols = get_confs_from_coords(
             gt_mol,
@@ -198,7 +197,7 @@ if __name__ == "__main__":
         "config": docking_cfg, "gpu_ids": GPU_IDS, "seed": EVAL_SEED,
         "num_complexes": len(test_dataset), "num_confs": 40,
         "perfect_selection": perfect_selection, "pocket": "pocket_center",
-        "precision": "float16 autocast", "optimized": True,
+        "precision": "float16 autocast",
         "inference_mode": True,
         "started_unix": started,
         "initial_shift_std_A": 1.0,

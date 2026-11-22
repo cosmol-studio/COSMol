@@ -238,7 +238,6 @@ def score_ligand_batch(
             calculate_score=True,
             pose_ranker_cfg=args.score_cfg,
             precision=torch.float16,
-            optimized=True,
             inference_steps=args.inference_steps,
         )
     if isinstance(results, dict):
@@ -665,7 +664,7 @@ if __name__ == "__main__":
         num_confs=args.num_confs, inference_steps=args.inference_steps,
         seed=args.seed, ligand_batch_size=args.ligand_batch_size,
         unbound_num_confs=args.unbound_num_confs, unbound_scale=args.unbound_scale,
-        unbound_atom_budget=args.unbound_atom_budget, precision="float16", optimized=True,
+        unbound_atom_budget=args.unbound_atom_budget, precision="float16",
         pocket_center_definition="reference heavy-atom coordinate mean",
     )
     for name, cfg in [("docking", args.docking_cfg), ("ranker", args.score_cfg)]:

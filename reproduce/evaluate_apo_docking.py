@@ -11,7 +11,7 @@ from utils import align_poses_to_reference_site
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from models.utils import resolve_path
-from reproduce.evaluate_docking import collect_ranked_predictions
+from reproduce.evaluate_docking import collect_ranked_predictions, load_gt_mol
 from scripts.docking_utils import (
     calc_rmsd,
     PB_validate_test,
@@ -68,7 +68,7 @@ if __name__ == "__main__":
     for task in tqdm(tasks):
         complex_name = task["complex_name"]
         print(complex_name)
-        gt_mol = Chem.MolFromMolFile(os.path.expanduser(task["ligand_description"]))
+        gt_mol = load_gt_mol(task["ligand_description"])
         if gt_mol is None:
             raise ValueError(f"{complex_name}: cannot read reference ligand {task['ligand_description']}")
         mol_pred_paths = task["prediction_paths"]

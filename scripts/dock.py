@@ -76,7 +76,6 @@ def run_task(task, args, device, precision):
         pose_ranker_cfg=score_cfg,
         pocket_pos_list=[pocket_pos] if use_pocket else None,
         precision=precision,
-        optimized=True,
         inference_steps=args.docking_joint.get("inference_steps", 50),
     )
 

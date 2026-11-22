@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from scripts.docking_utils import calc_rmsd, FAIL_RULES
 from models.utils import resolve_path
+from data.utils import read_ligand, remove_all_hydrogens, to_rdkit
 
 
 
@@ -47,8 +48,8 @@ def pb_validate_test_local(pred_mol_block, gt_mol_block, protein_path):
     if pred_mol is None or gt_mol is None:
         return torch.tensor([False] + [True] * 26)
 
-    pred_mol = Chem.RemoveHs(pred_mol)
-    gt_mol = Chem.RemoveHs(gt_mol)
+    pred_mol = Chem.RemoveAllHs(pred_mol)
+    gt_mol = Chem.RemoveAllHs(gt_mol)
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -109,11 +110,9 @@ def pb_worker(task_queue, result_queue):
 
 def load_gt_mol(ligand_description):
     ligand_description = os.path.expanduser(ligand_description)
-    if ligand_description.endswith(".sdf"):
-        return Chem.MolFromMolFile(ligand_description, sanitize=True)
-    if ligand_description.endswith(".mol2"):
-        return Chem.MolFromMol2File(ligand_description, sanitize=True)
-    raise ValueError(f"Unsupported ligand format: {ligand_description}")
+    if not ligand_description.lower().endswith((".sdf", ".mol2")):
+        raise ValueError(f"Unsupported ligand format: {ligand_description}")
+    return to_rdkit(remove_all_hydrogens(read_ligand(ligand_description)))
 
 
 def collect_ranked_predictions(out_dir, complex_name, perfect_selection):

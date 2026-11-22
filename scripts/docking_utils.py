@@ -162,7 +162,6 @@ def pred_confs(
     pocket_pos_list=None,
     precision=torch.float32,
     initial_shift_range=1.0,
-    optimized=False,
     inference_steps=50,
     # pocket_ranker_sdf_dir="pocket_ranker_sdf.sdf",
 ):
@@ -302,10 +301,9 @@ def pred_confs(
         dock_batch = Batch.from_data_list(dock_batch)
 
         with torch.no_grad():
-            run_kwargs = {"inference_steps": inference_steps}
-            if optimized:
-                run_kwargs["optimized"] = True
-            pred_coords_flat = run_batch(dock_batch, docking_cfg, **run_kwargs)
+            pred_coords_flat = run_batch(
+                dock_batch, docking_cfg, inference_steps=inference_steps
+            )
 
         pred_confs_flat = torch.split(pred_coords_flat, ligand_atom_counts, dim=0)
         per_data_pred = [
@@ -371,9 +369,6 @@ def pred_confs(
         )
         score_tensors = scores_flat.view(len(datalist), num_confs)
 
-        if device.type == "cuda" and not optimized:
-            torch.cuda.empty_cache()
-
         outputs = []
         for pred_conf_set, scores in zip(per_data_pred, score_tensors):
             outputs.append(
@@ -393,7 +388,7 @@ def _compute_delta_t(t_schedule: torch.Tensor, t: torch.Tensor):
     return t_next - t_curr
 
 
-def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, inference_steps=50):
+def run_batch(batch, docking_cfg, save_each_frame=False, inference_steps=50):
     if isinstance(inference_steps, bool) or not isinstance(inference_steps, int) or inference_steps < 1:
         raise ValueError("inference_steps must be a positive integer")
     n_steps = inference_steps
@@ -404,19 +399,18 @@ def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, infere
     steps = n_steps + 1
     device = batch.pos.device
     t_schedule = torch.cos(torch.linspace(0, math.pi / 2, steps, device=device)).flip(0)
-    if optimized:
-        # Preserve device-generated schedule values; synchronize only once.
-        t_host = t_schedule.tolist()
-        ligand_indices = batch.ligand_mask.nonzero(as_tuple=False).view(-1)
-        node_batch = batch.batch[ligand_indices]
-        graph_count = batch.num_graphs
+    # Preserve device-generated schedule values; synchronize only once.
+    t_host = t_schedule.tolist()
+    ligand_indices = batch.ligand_mask.nonzero(as_tuple=False).view(-1)
+    node_batch = batch.batch[ligand_indices]
+    graph_count = batch.num_graphs
     for i in range(t_schedule.size(0) - 1):
         delta_t = _compute_delta_t(t_schedule, t=i)
-        t = t_host[i] if optimized else t_schedule[i]
+        t = t_host[i]
         batch_t = copy(batch)
         batch_t.extract_pocket_and_update_graph(
             radius_cutoff,
-            (1.0 if optimized else torch.tensor(1.0, device=device)) if t > 0.9 else t,
+            1.0 if t > 0.9 else t,
         )
         with torch.no_grad():
             if docking_cfg.task == "JointDockingConformation":
@@ -424,11 +418,7 @@ def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, infere
             v_t, R_pred, shift = docking_model(batch_t, task="docking")
             shift *= docking_cfg.dataset.dock.max_translation_shift
 
-        if optimized:
-            pos = batch.pos.index_select(0, ligand_indices)
-        else:
-            pos = batch.pos[batch.ligand_mask]
-            node_batch = batch.batch[batch.ligand_mask]
+        pos = batch.pos.index_select(0, ligand_indices)
 
         mile_stone = 0.4
         if t > mile_stone:
@@ -445,8 +435,7 @@ def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, infere
         R_pred = rotation_fraction(R_pred, rotation_fraction_t)
         R_graph = R_pred[node_batch]
 
-        centers = scatter(pos, node_batch, dim=0, reduce="mean",
-                          **({"dim_size": graph_count} if optimized else {}))
+        centers = scatter(pos, node_batch, dim=0, reduce="mean", dim_size=graph_count)
         center_node = centers[node_batch]
 
         if t < 0.8:
@@ -457,10 +446,7 @@ def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, infere
         pos_rot = torch.einsum("ni,nij->nj", pos_centered, R_graph)
         pos_rot = pos_rot + center_node + shift[node_batch]
 
-        if optimized:
-            batch.pos.index_copy_(0, ligand_indices, pos_rot)
-        else:
-            batch.pos[batch.ligand_mask] = pos_rot
+        batch.pos.index_copy_(0, ligand_indices, pos_rot)
         if save_each_frame:
             num_mols = batch.batch.max().item() + 1
             for j in range(num_mols):
@@ -493,9 +479,7 @@ def run_batch(batch, docking_cfg, save_each_frame=False, optimized=False, infere
                     sdf_path=f"../../frames/frame_{j:03d}_{i:03d}.sdf",
                 )
 
-    if optimized:
-        return batch.pos.index_select(0, ligand_indices)
-    return batch.pos[torch.nonzero(batch.ligand_mask, as_tuple=False).view(-1)]
+    return batch.pos.index_select(0, ligand_indices)
 
 
 def calc_rmsd(mol, ref_mol, remove_Hs=True):
@@ -506,13 +490,13 @@ def calc_rmsd(mol, ref_mol, remove_Hs=True):
     from data.utils import to_rdkit
     mol, ref_mol = to_rdkit(mol), to_rdkit(ref_mol)
     if remove_Hs:
-        mol, ref_mol = Chem.RemoveHs(mol), Chem.RemoveHs(ref_mol)
+        mol, ref_mol = Chem.RemoveAllHs(mol), Chem.RemoveAllHs(ref_mol)
     coords1, coords2 = mol.GetConformer().GetPositions(), ref_mol.GetConformer().GetPositions()
     numbers1 = np.asarray([atom.GetAtomicNum() for atom in mol.GetAtoms()])
     numbers2 = np.asarray([atom.GetAtomicNum() for atom in ref_mol.GetAtoms()])
     adjacency1, adjacency2 = Chem.GetAdjacencyMatrix(mol), Chem.GetAdjacencyMatrix(ref_mol)
     try:
-        with time_limit(2):
+        with time_limit(30):
             # Preserve docking frame and the established element/connectivity symmetry.
             rmsd = symmrmsd(coords1, coords2, numbers1, numbers2, adjacency1, adjacency2)
     except TimeoutError:
@@ -550,8 +534,8 @@ def PB_validate_test(pred_mol, gt_mol, path):
     orig_cond_file = Path(path)
 
     from data.utils import to_rdkit
-    pred_mol = Chem.RemoveHs(to_rdkit(pred_mol))
-    gt_mol = Chem.RemoveHs(to_rdkit(gt_mol))
+    pred_mol = Chem.RemoveAllHs(to_rdkit(pred_mol))
+    gt_mol = Chem.RemoveAllHs(to_rdkit(gt_mol))
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:

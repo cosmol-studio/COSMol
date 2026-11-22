@@ -1135,6 +1135,26 @@ def read_ligand(description):
     return ck.Molecule.from_smiles(description)
 
 
+def remove_all_hydrogens(mol: ck.Molecule):
+    """Remove every explicit H when coordinates contain heavy atoms only."""
+    return mol.without_hydrogens(
+        remove_degree_zero=True,
+        remove_higher_degrees=True,
+        remove_only_h_neighbors=True,
+        remove_isotopes=True,
+        remove_dummy_neighbors=True,
+        remove_defining_bond_stereo=True,
+        remove_with_wedged_bond=True,
+        remove_with_query=True,
+        remove_mapped=True,
+        remove_in_sgroups=True,
+        remove_nonimplicit=True,
+        remove_hydrides=True,
+        remove_nontetrahedral_neighbors=True,
+        show_warnings=False,
+    )
+
+
 def get_confs_from_coords(mol: ck.Molecule, pos, has_hydrogens=False):
     """Build conformers with the explicitly requested hydrogen representation.
 
@@ -1145,7 +1165,7 @@ def get_confs_from_coords(mol: ck.Molecule, pos, has_hydrogens=False):
         pos = pos.detach().cpu().numpy()
     pos = np.asarray(pos, dtype=float)
     if not has_hydrogens:
-        mol = mol.without_hydrogens()
+        mol = remove_all_hydrogens(mol)
     if pos.ndim != 3 or pos.shape[1:] != (len(mol.atoms), 3):
         raise ValueError(
             f'Coordinate/atom shape mismatch: {pos.shape}; template has {len(mol.atoms)} atoms'
@@ -1168,7 +1188,7 @@ def to_rdkit(mol):
 
 def save_sdf(mol, path, has_hydrogens=False):
     if not has_hydrogens:
-        mol = mol.without_hydrogens()
+        mol = remove_all_hydrogens(mol)
     mol.write_sdf(str(path))
 
 

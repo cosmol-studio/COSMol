@@ -139,8 +139,9 @@ def fuse(rows, exponent):
     return r * np.maximum(qc, 1e-6) ** exponent, qt, qd
 
 
-def support_features(path, expected_id, expected_smiles, expected_scores):
-    """Compute support using top-five poses, 3-A clustering and a 15-degree kernel."""
+def support_features(path, expected_id, expected_smiles, expected_scores,
+                     cluster_threshold=3.0, bandwidth=15.0):
+    """Compute support using top-five poses; threshold is in Å, bandwidth in degrees."""
     with np.load(path, allow_pickle=False) as raw:
         if str(raw["mol_id"]) != expected_id or str(raw["smiles"]) != expected_smiles:
             raise ValueError(f"Ligand identity mismatch: {path}")
@@ -190,7 +191,7 @@ def support_features(path, expected_id, expected_smiles, expected_scores):
             squared = np.mean(np.sum((dock[j][permutations] - dock[i]) ** 2, axis=2), axis=1)
             distances[i, j] = distances[j, i] = np.sqrt(squared.min())
     labels = fcluster(linkage(squareform(distances, checks=False), method="complete"),
-                      3.0, criterion="distance")
+                      cluster_threshold, criterion="distance")
     clusters = [np.flatnonzero(labels == label) for label in np.unique(labels)]
     size = max(map(len, clusters))
     basin = max((c for c in clusters if len(c) == size),
@@ -214,7 +215,7 @@ def support_features(path, expected_id, expected_smiles, expected_scores):
     if quartets:
         delta = angles(dock)[:, None, :] - angles(free)[None, :, :]
         delta = np.abs((delta + np.pi) % (2 * np.pi) - np.pi)
-        support = np.exp(-delta ** 2 / (2 * np.deg2rad(15) ** 2)).mean(axis=1)
+        support = np.exp(-delta ** 2 / (2 * np.deg2rad(bandwidth) ** 2)).mean(axis=1)
         support = (len(free) * support + 0.05) / (len(free) + 1)
         surprisal = float((-np.log(np.clip(support, 1e-8, None)))[basin].mean())
     return dict(num_rotatable_bonds=len(quartets), torsion_surprisal=surprisal,
@@ -245,7 +246,10 @@ def evaluate_target(directory, args):
         for (_, row), scores, r in zip(df.iterrows(), parsed, ranker):
             if not isinstance(row.get("conformer_file"), str) or not row["conformer_file"]:
                 raise ValueError(f"Missing conformations for {row['mol_id']}; generate with --unbound-support")
-            features = support_features(directory / row["conformer_file"], row["mol_id"], row["smiles"], scores)
+            features = support_features(
+                directory / row["conformer_file"], row["mol_id"], row["smiles"], scores,
+                cluster_threshold=args.cluster_threshold, bandwidth=args.bandwidth,
+            )
             rows.append(dict(ranker_top10_mean=float(r), **features))
         # All percentile calculations use this target's evaluated ligand library.
         combined, qt, qd = fuse(rows, args.support_exponent)
@@ -282,6 +286,10 @@ def main():
     parser.add_argument("--agg", choices=["max", "mean", "median", "topk_mean", "topk_median"], default="max")
     parser.add_argument("--topk", type=int, default=10)
     parser.add_argument("--support-exponent", type=float, default=0.10)
+    parser.add_argument("--cluster-threshold", type=float, default=3.0,
+                        help="Complete-linkage pose clustering threshold in Å (default: 3)")
+    parser.add_argument("--bandwidth", type=float, default=15.0,
+                        help="Periodic torsion kernel bandwidth in degrees (default: 15)")
     parser.add_argument("--bedroc_alpha", "--bedroc-alpha", type=float, default=80.5)
     parser.add_argument("--allow_failed", "--allow-failed", action="store_true")
     parser.add_argument("--output-dir", type=Path)
@@ -290,6 +298,9 @@ def main():
         parser.error("topk must be positive and support exponent finite and nonnegative")
     if not np.isfinite(args.bedroc_alpha) or args.bedroc_alpha <= 0:
         parser.error("BEDROC alpha must be finite and positive")
+    if any(not np.isfinite(value) or value <= 0
+           for value in (args.cluster_threshold, args.bandwidth)):
+        parser.error("cluster threshold and bandwidth must be finite and positive")
     args.vs_dir = Path(resolve_path(args.vs_dir, output=True))
     args.output_dir = Path(resolve_path(args.output_dir, output=True)) if args.output_dir else args.vs_dir / "evaluation"
     targets = [args.vs_dir / args.target] if args.target else sorted(
