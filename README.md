@@ -10,15 +10,15 @@ Use Python 3.11 on Linux with an NVIDIA GPU.
 git clone https://github.com/cosmol-studio/COSMol.git
 cd COSMol
 python -m pip install -r requirements.in
-curl -L "https://obj.cosmol.net/cosmol/checkpoints_v5.gz" -o ckpt/checkpoints_v5.tar.gz
-tar -xzf ckpt/checkpoints_v5.tar.gz -C ckpt
+curl -fL "https://obj.cosmol.net/cosmol/checkpoints_v6.gz" -o ckpt/checkpoints.tar.gz
+tar -xzf ckpt/checkpoints.tar.gz -C ckpt
 ```
 
-The default configurations load the three V5 checkpoints from `./ckpt/`; set GPUs in [config/dock_config.toml](config/dock_config.toml) (default: GPU 0, 40 poses per ligand).
+Select your GPUs in [config/dock_config.toml](config/dock_config.toml). The default is GPU 0 with 40 poses per ligand.
 
 ## Dock one complex
 
-Provide a receptor in PDB or mmCIF format and a ligand as an SDF file, a MOL2 file, or a SMILES string.
+Provide a receptor as a PDB (`.pdb`) or mmCIF (`.cif`) file and a ligand as an SDF file, a MOL2 file, or a SMILES string.
 
 ```bash
 python scripts/dock.py -c config/dock_config.toml \
@@ -51,7 +51,7 @@ python scripts/dock.py -c config/dock_config.toml \
 
 Each complex has its own output directory. Tasks are distributed across the GPUs selected in the configuration. Use `--input_dir` to prepend a common directory to relative input paths in the CSV.
 
-For supplied pockets, add a `pocket_description` column containing a pocket PDB or SDF path, then pass `--use_pocket`. Its heavy-atom centroid defines the docking center. Pass `--use_ligand_center_as_pocket` to use each input ligand's center instead.
+For supplied pockets, add a `pocket_description` column containing a PDB, SDF, or MOL2 path, then pass `--use_pocket`. Its heavy-atom centroid defines the docking center. Pass `--use_ligand_center_as_pocket` to use each input ligand's center instead.
 
 ## Generate ligand conformers
 
@@ -78,7 +78,7 @@ python scripts/conf_gen.py -c config/Joint/Joint_all.toml \
   --out_dir ./output/conformers_batch
 ```
 
-Relative ligand file paths are resolved from the working directory. Each ligand's conformers are saved as `0.sdf`, `1.sdf`, and so on under `<out_dir>/<ligand_name>/`, with explicit hydrogens retained. `--num_confs` sets the number of conformers per ligand. `--batch_size` controls the number of ligands processed together, and `--flow_temperature` sets the flow update scale. The GPU defaults to the first GPU selected in the model configuration when `--device` is omitted.
+Relative ligand file paths are resolved from the working directory. Conformers are saved as `0.sdf`, `1.sdf`, and so on, with explicit hydrogens retained. Single-ligand output goes directly under `<out_dir>/`; CSV input creates one `<out_dir>/<ligand_name>/` directory per ligand. `--num_confs` sets the number of conformers per ligand. `--batch_size` controls the number of ligands processed together, and `--flow_temperature` sets the flow update scale. The GPU defaults to the first GPU selected in the model configuration when `--device` is omitted.
 
 ## Virtual screening
 

@@ -1308,6 +1308,15 @@ class COSMol(torch.nn.Module):
             ]
         )
 
+        self.deep_residual_span = cfg.get("deep_residual_span", 0)
+        if type(self.deep_residual_span) is not int or not 0 <= self.deep_residual_span <= self.num_layers:
+            raise ValueError("deep_residual_span must be an integer between 0 and num_layers")
+        if self.deep_residual_span:
+            # Index s controls the edge s -> s + span; node 0 is the input.
+            self.deep_residual_strengths = torch.nn.Parameter(
+                torch.zeros(self.num_layers - self.deep_residual_span + 1)
+            )
+
         if cfg.cutoff_fn == "Cosine":
             self.cutoff_fn = CosineCutoff(self.radius_cutoff)
         elif cfg.cutoff_fn == "Cosine_2":
@@ -1339,6 +1348,7 @@ class COSMol(torch.nn.Module):
             num_layers = self.num_layers
         num_layers = min(num_layers, self.num_layers)
 
+        history = [(x, x_vec)] if self.deep_residual_span else None
         for i in range(num_layers):
             interaction = self.interactions[i]
             update = self.update[i]
@@ -1351,6 +1361,15 @@ class COSMol(torch.nn.Module):
                 edge_index,
             )
             x, x_vec = update(x, x_vec)
+            if history is not None:
+                # Tap the layer output before mixing its incoming deep residual.
+                history.append((x, x_vec))
+                source = i + 1 - self.deep_residual_span
+                if source >= 0:
+                    strength = self.deep_residual_strengths[source]
+                    skip_x, skip_vec = history[source]
+                    x = (1 - strength) * x + strength * skip_x
+                    x_vec = (1 - strength) * x_vec + strength * skip_vec
         return (x, x_vec, batch)
 
 

@@ -7,9 +7,9 @@ use_cpu = false
 gpus = [0]
 
 [paths]
-checkpoint = "./ckpt/Pose_ranker_v5.ckpt"
+checkpoint = "./ckpt/Pose_ranker_v6.ckpt"
 save_dir = "./logs"
-name = "Pose_ranker_v5"
+name = "Pose_ranker_v6"
 
 [dataset]
 name = "PDBbind_score_negative"
@@ -22,7 +22,8 @@ input_dim = 128
 
 [model.backbone]
 num_node_types = 100
-num_layers = 3
+num_layers = 6
+deep_residual_span = 3
 dist_rbf_dim = 128
 radius_cutoff = 6.0
 use_edge_type = true
@@ -45,7 +46,7 @@ max_epochs = 800
 
 [trainer.optimizer]
 class = "AdamW"
-lr = 3.0e-4
+lr = 1.0e-4
 weight_decay = 0
 
 [trainer.scheduler]
